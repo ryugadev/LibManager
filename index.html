@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LibManager Pro - Quản Lý Thư Viện</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class', // Enable class-based dark mode
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              primary: '#2563eb', // blue-600
+              secondary: '#4b5563', // gray-600 (darker for better contrast)
+              success: '#16a34a', // green-600
+              warning: '#d97706', // amber-600
+              danger: '#dc2626', // red-600
+              dark: {
+                bg: '#000000', // Pure Black
+                card: '#111111', // Almost Black
+                border: '#333333', // High contrast border
+                text: '#ffffff', // Pure White
+                muted: '#d4d4d4' // Light Gray for secondary text
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body { font-family: 'Inter', sans-serif; }
+      /* Custom scrollbar */
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: #f3f4f6; }
+      ::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+      
+      /* Dark mode scrollbar */
+      .dark ::-webkit-scrollbar-track { background: #000000; }
+      .dark ::-webkit-scrollbar-thumb { background: #4b5563; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "clsx": "https://esm.sh/clsx@^2.1.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
+  }
+}
+</script>
+</head>
+  <body class="bg-white text-black dark:bg-dark-bg dark:text-dark-text transition-colors duration-200">
+    <div id="root"></div>
+  </body>
+</html>
