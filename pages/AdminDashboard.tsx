@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../services/storageService';
-import { Book, BorrowRecord, BorrowStatus, Role, User, UserEditRequest } from '../types';
+import { Book, BorrowRecord, BorrowStatus, Role, User } from '../types';
 import { Card, Button, Input, Badge, Select } from '../components/Components';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Plus, Trash2, Edit2, Search, CheckCircle, AlertTriangle, RefreshCcw, Save, Book as BookIcon, User as UserIcon, Archive, X, FileWarning, Clock, Calculator, BarChart3, Users, Shield, FileEdit, Check, XCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, CheckCircle, AlertTriangle, RefreshCcw, Save, Book as BookIcon, User as UserIcon, Archive, X, FileWarning, Clock, Calculator, BarChart3, Users, Shield } from 'lucide-react';
 import { CURRENCY_LOCALE, FINE_PER_DAY } from '../constants';
 
 const COLORS = ['#000000', '#4b5563', '#9ca3af', '#d1d5db', '#2563eb', '#dc2626'];
@@ -15,7 +15,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [books, setBooks] = useState<Book[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [borrows, setBorrows] = useState<BorrowRecord[]>([]);
-  const [editRequests, setEditRequests] = useState<UserEditRequest[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Permission Checks
@@ -65,7 +64,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     setBooks(db.getBooks());
     setBorrows(db.getBorrows());
     setUsers(db.getUsers());
-    setEditRequests(db.getEditRequests());
   };
 
   useEffect(() => {
@@ -174,18 +172,23 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     const targetUser = users.find(u => u.id === id);
     if (!targetUser) return;
 
-    // Security Check
-    if (isLibrarian && (targetUser.role === Role.ADMIN || targetUser.role === Role.LIBRARIAN)) {
-        alert("Bạn không có quyền xóa tài khoản này.");
+    // Security Check: Only Admin can delete users
+    if (!isSuperAdmin) {
+        alert("Chỉ Quản trị viên mới có quyền xóa người dùng.");
         return;
     }
 
-    if(window.confirm('Bạn có chắc chắn muốn xóa người dùng này? Dữ liệu mượn trả liên quan có thể bị ảnh hưởng.')) {
+    // Confirmation Dialog
+    if(window.confirm(`Bạn có chắc chắn muốn xoá người dùng ${targetUser.fullName} không?`)) {
       try {
         db.deleteUser(id);
+        // Optimistic update
+        setUsers(users.filter(u => u.id !== id));
         refreshData();
+        alert("Đã xóa người dùng thành công.");
       } catch (err: any) {
-        alert(err.message);
+        console.error(err);
+        alert("Lỗi: " + err.message);
       }
     }
   };
@@ -202,9 +205,9 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       return;
     }
 
-    // Security Check: Librarian can only create USERS
+    // Security Check: Librarian can only create/edit USERS
     if (isLibrarian && userForm.role !== Role.USER) {
-        alert("Thủ thư chỉ có thể tạo tài khoản Độc giả.");
+        alert("Thủ thư chỉ có thể thao tác với tài khoản Độc giả.");
         return;
     }
 
@@ -214,20 +217,11 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     } as User;
 
     if (editingUserId) {
-        // UPDATE LOGIC
-        if (isLibrarian) {
-            // Librarian: Create Request
-            const currentUserInDb = users.find(u => u.id === editingUserId);
-            if (currentUserInDb) {
-                db.createUserEditRequest(currentUserInDb, userToSave, currentUser.username);
-                alert("Yêu cầu thay đổi thông tin đã được gửi tới Quản trị viên.");
-            }
-        } else {
-            // Admin: Update Directly
-            db.updateUser(userToSave);
-        }
+        // UPDATE LOGIC: Direct update for everyone (Admin & Librarian)
+        db.updateUser(userToSave);
+        if (isLibrarian) alert("Đã cập nhật thông tin độc giả thành công.");
     } else {
-        // CREATE LOGIC (Admin or Librarian can create directly)
+        // CREATE LOGIC
         const error = db.createUser(userToSave as User);
         if (error) {
             alert(error);
@@ -237,18 +231,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     
     handleCancelEditUser();
     refreshData();
-  };
-
-  // --- Handlers: Edit Requests (Admin Only) ---
-  const handleResolveRequest = (requestId: string, approved: boolean) => {
-      // Direct call to DB
-      try {
-          db.resolveEditRequest(requestId, approved);
-          refreshData(); // Force refresh immediately
-      } catch (error) {
-          console.error(error);
-          alert("Lỗi: " + error);
-      }
   };
 
   // --- Handlers: Borrows ---
@@ -338,9 +320,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
            className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all whitespace-nowrap relative ${activeTab === 'users' ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
         >
            <Users className="w-4 h-4" /> Quản lý Độc giả
-           {isSuperAdmin && editRequests.length > 0 && (
-               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border border-white dark:border-black"></span>
-           )}
         </button>
         <button 
            onClick={() => setActiveTab('borrows')}
@@ -485,64 +464,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
       {/* --- USERS TAB --- */}
       {activeTab === 'users' && (
         <div className="space-y-6 animate-fade-in">
-             {/* PENDING REQUESTS SECTION (ADMIN ONLY) */}
-             {isSuperAdmin && editRequests.length > 0 && !isEditingUser && (
-                 <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 shadow-sm animate-slide-in-right">
-                     <h3 className="text-lg font-bold text-yellow-800 dark:text-yellow-400 flex items-center gap-2 mb-3">
-                         <FileEdit className="w-5 h-5" />
-                         Yêu cầu thay đổi thông tin ({editRequests.length})
-                     </h3>
-                     <div className="grid gap-3">
-                         {editRequests.map(req => (
-                             <div key={req.id} className="bg-white dark:bg-dark-card p-3 rounded-lg border border-yellow-100 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
-                                 <div className="flex-1 text-sm text-gray-700 dark:text-gray-300">
-                                     <p>
-                                        <span className="font-bold">Thủ thư @{req.requestedBy}</span> muốn thay đổi thông tin của độc giả 
-                                        <span className="font-bold"> {req.targetCurrentName}</span>
-                                     </p>
-                                     <p className="text-xs text-gray-500 mt-1">Gửi lúc: {new Date(req.requestedAt).toLocaleString('vi-VN')}</p>
-                                     
-                                     {/* Simple Diff Display */}
-                                     <div className="mt-2 text-xs flex gap-2">
-                                        <span className="bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded">Mới: {req.newData.fullName}</span>
-                                        <span className="bg-gray-100 dark:bg-slate-700 px-2 py-1 rounded">@{req.newData.username}</span>
-                                        {req.newData.role !== Role.USER && <span className="bg-red-100 text-red-800 px-2 py-1 rounded">Role: {req.newData.role}</span>}
-                                     </div>
-                                 </div>
-                                 <div className="flex gap-2">
-                                     <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            if(window.confirm("Bạn có chắc chắn muốn TỪ CHỐI yêu cầu này?")) {
-                                                handleResolveRequest(req.id, false);
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-lg border border-red-200 text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
-                                     >
-                                         <XCircle className="w-4 h-4 inline-block mr-1" /> Từ chối
-                                     </button>
-                                     <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            if(window.confirm("Bạn có chắc chắn muốn CHẤP NHẬN thay đổi này?")) {
-                                                handleResolveRequest(req.id, true);
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide rounded-lg bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
-                                    >
-                                         <Check className="w-4 h-4 inline-block mr-1" /> Chấp nhận
-                                     </button>
-                                 </div>
-                             </div>
-                         ))}
-                     </div>
-                 </div>
-             )}
-
              <div className="flex flex-col lg:flex-row gap-6">
                 {/* User List */}
                 <div className={`flex-1 space-y-4 transition-all ${isEditingUser ? 'hidden lg:block lg:w-1/3' : 'w-full'}`}>
@@ -577,10 +498,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                         {u.role === Role.LIBRARIAN && (
                                             <Badge color="red">Thủ thư</Badge>
                                         )}
-                                        {/* Show pending badge if there is a request for this user */}
-                                        {editRequests.some(r => r.targetUserId === u.id) && (
-                                            <Badge color="yellow">Đang chờ duyệt</Badge>
-                                        )}
                                     </div>
                                     <p className="text-sm text-gray-500 dark:text-gray-400 truncate">@{u.username}</p>
                                 </div>
@@ -588,9 +505,19 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     <Button variant="secondary" size="sm" onClick={() => handleEditUser(u)}>
                                         <Edit2 className="w-4 h-4" />
                                     </Button>
-                                    <Button variant="danger" size="sm" onClick={() => handleDeleteUser(u.id)}>
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
+                                    {isSuperAdmin && (
+                                        <button 
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteUser(u.id);
+                                            }}
+                                            className="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors flex items-center justify-center"
+                                            title="Xóa người dùng"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -614,15 +541,6 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                     <div className="p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-700 flex items-center gap-2">
                                         <span className="text-sm text-gray-500">ID:</span>
                                         <code className="text-sm font-bold text-gray-800 dark:text-gray-200">{editingUserId}</code>
-                                    </div>
-                                )}
-
-                                {isLibrarian && editingUserId && (
-                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg flex items-start gap-2 border border-blue-100 dark:border-blue-900/30">
-                                        <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-                                        <p className="text-sm text-blue-800 dark:text-blue-200">
-                                            Vì bạn là Thủ thư, các thay đổi đối với tài khoản này sẽ cần Quản trị viên phê duyệt trước khi có hiệu lực.
-                                        </p>
                                     </div>
                                 )}
 
@@ -676,11 +594,7 @@ const AdminDashboard: React.FC<{ currentUser: User }> = ({ currentUser }) => {
                                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-slate-700">
                                     <Button type="button" variant="secondary" onClick={handleCancelEditUser}>Hủy</Button>
                                     <Button type="submit">
-                                        {isLibrarian && editingUserId ? (
-                                            <><FileEdit className="w-4 h-4 mr-2" /> Gửi yêu cầu thay đổi</>
-                                        ) : (
-                                            <><Save className="w-4 h-4 mr-2" /> Lưu thông tin</>
-                                        )}
+                                        <Save className="w-4 h-4 mr-2" /> Lưu thông tin
                                     </Button>
                                 </div>
                             </form>
